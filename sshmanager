@@ -1,113 +1,134 @@
-#!/usr/bin/perl -w
-
+#!/usr/bin/env perl
+# sshmanager (c) pkuptsov@gmail.com 2017
 use common::sense;
 use File::Path qw(make_path);
-use DBI;
 use Mojo::SQLite;
-use Data::Dumper;
-
+###########################################
 my $ssh_keygen = `which ssh-keygen`;
-my $home_dir = $ENV{HOME};
-my $rsa_files = $home_dir . '/.ssh/id_rsa.pub';
-my $db_dir = $home_dir . '/.sshmanager';
-my $db_file = 'dbmanager.db';
-my $sql;
+my $rsa_files  = $ENV{HOME} . '/.ssh/id_rsa.pub';
+my $db_dir     = $ENV{HOME} . '/.sshmanager';
+my $db_file    = 'dbmanager.db';
 
 # make folder for database
-if (-d $db_dir) {
-  #$dbh = DBI->connect("dbi:SQLite:dbname=$db_file","","");
-  $sql = Mojo::SQLite->new('sqlite:' . $db_dir . '/' . $db_file);
+unless ( -d $db_dir ) {
+    make_path($db_dir);
 }
-else {
-  make_path($db_dir);#, {mode => 0755}
-  $sql = Mojo::SQLite->new('sqlite:' . $db_dir . '/' . $db_file);
-}
+
+my $sql = Mojo::SQLite->new( 'sqlite:' . $db_dir . '/' . $db_file )
+  || die "Can't connect to DB: $!";
+
 # init DB
 $sql->migrations->from_data;
 $sql->migrations->migrate(1);
 
-if (-e $rsa_files)
-{
- say "rsa public key exists";
-}
-else
-{
- say "generate rsa keys";
- system($ssh_keygen . " -t rsa -b 2048"); 
+# check alias column exists
+my $alias_exists = map { /alias/i } @{ $sql->db->select('servers')->columns };
+unless ($alias_exists) {
+    $sql->migrations->migrate(2);
 }
 
+unless ( -e $rsa_files ) {
+    say "Generate rsa keys";
+    system( $ssh_keygen . " -t rsa -b 2048" );
+}
 
 # db handler
 my $db = $sql->db;
 REREAD:
-my $results = $db->select('servers');
+my $results  = $db->select('servers');
 my @ssh_pool = ();
 
 # Process one row at a time
-while (my $next = $results->array) {
-  push(@ssh_pool,$next->[1]);
+while ( my $next = $results->hash ) {
+    push( @ssh_pool, $next );
+}
+clear();
+START:
+say "==============================================================================";
+say "=============================== SSH MANAGER ==================================\n";
+
+for my $server (@ssh_pool) {
+    say "$server->{ID}: $server->{SERVER} ( $server->{ALIAS} )"
+      if $server->{ID} > 0;
 }
 
-START:
-say "=======================================================================================";
-say "=============================== SSH MANAGER ===========================================";
-say;
-for (my $i=1; $i< scalar @ssh_pool; $i++)
-{
-  say $i . " -- $ssh_pool[$i]";
-}
-say;
-say "----------------------------------------------------------------------------------------";
-say "n - new connection, d [number] - delete connection (d 1), e [number] - edit connection, q - quit";
-say "========================================================================================";
+say "\n------------------------------------------------------------------------------";
+say "n - new connection, d [num] - delete connection, q - quit";
+say "==============================================================================";
 my $choose = <STDIN>;
 chomp($choose);
-say "Exit" and exit if ($choose eq 'q' or $choose eq '0');
+say "Exit" and exit if ( $choose eq 'q' or $choose eq '0' );
 say "Add new" and add_new() if $choose eq 'n';
 say "Delete" and delete_server($1) if $choose =~ /^d\s+(\d+)/i;
+
+# check valid choise and save server for execute
+my $server = check_server_exists($choose);
+
 my $pid = fork();
 die if not defined $pid;
 
-if (not $pid) {
-  exec("ssh $ssh_pool[$choose]");
+if ( not $pid ) {
+    exec("ssh $server");
 }
-else
-{
-  system("clear");
-  my $finished = wait();
-  goto START;
+else {
+    clear();
+    my $finished = wait();
+    goto START;
 }
 
 sub add_new {
-  say "Enter hostname:";
-  my $hostname = <STDIN>;
-  chomp($hostname);
-  say "Enter username:";
-  my $username = <STDIN>;
-  chomp($username);
-  system("ssh-copy-id $username\@$hostname");
-  
-  $db->insert('servers',{server => "$username\@$hostname"});
-  goto REREAD;
+    say "Enter hostname:";
+    my $hostname = <STDIN>;
+    chomp($hostname);
+    say "Enter username:";
+    my $username = <STDIN>;
+    chomp($username);
+    say "Enter alias:";
+    my $alias = <STDIN>;
+    chomp($alias);
+    system("ssh-copy-id $username\@$hostname");
+
+    $db->insert( 'servers',
+        { server => "$username\@$hostname", alias => $alias } );
+    goto REREAD;
 }
 
 sub delete_server {
-  my $id = shift;
-  my $server = $db->select('servers',['server'],{ID => $id})->hash->{SERVER};
-  say "Delete server?(yes/no): $server";
-  my $answer = <STDIN>;
-  chomp($answer);
-  return unless $answer eq 'yes';
-  say "Deleting...";
-  $db->delete('servers',{ID => $id});
-  goto REREAD;
+    my $id = shift;
+    my $server =
+      $db->select( 'servers', ['server'], { ID => $id } )->hash->{SERVER};
+    say "Delete server?(yes/no): $server";
+    my $answer = <STDIN>;
+    chomp($answer);
+    return unless $answer eq 'yes';
+    say "Deleting...";
+    $db->delete( 'servers', { ID => $id } );
+    goto REREAD;
 }
+
+sub clear {
+    system("clear");
+}
+
+sub check_server_exists {
+    my $id = shift;
+    $id =~ s/[^0-9]+//g;
+    say "Error choice" and goto START unless $id;
+    my $server = $db->select( 'servers', ['server'], { ID => $id } )->hash;
+    say "Error choice" and goto START unless $server;
+    return $server->{SERVER};
+}
+
 __DATA__
 @@ migrations
 -- 1 up
 create table if not exists servers (
 ID INTEGER PRIMARY KEY AUTOINCREMENT,
-SERVER TEXT);
+SERVER TEXT,
+ALIAS TEXT
+);
 INSERT INTO servers(ID,SERVER) VALUES(0,'exit');
 -- 1 down
 drop table if exists servers;
+-- 2 up
+ALTER TABLE servers ADD COLUMN ALIAS TEXT;
