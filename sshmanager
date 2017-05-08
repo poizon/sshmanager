@@ -3,6 +3,7 @@
 use common::sense;
 use File::Path qw(make_path);
 use Mojo::SQLite;
+use Text::ANSITable;
 ###########################################
 my $ssh_keygen = `which ssh-keygen`;
 my $rsa_files  = $ENV{HOME} . '/.ssh/id_rsa.pub';
@@ -35,45 +36,55 @@ unless ( -e $rsa_files ) {
 # db handler
 my $db = $sql->db;
 REREAD:
-my $results  = $db->select('servers');
-my @ssh_pool = ();
+my $server_pool = read_db($db);
 
-# Process one row at a time
-while ( my $next = $results->hash ) {
-    push( @ssh_pool, $next );
-}
 clear();
+
 START:
-say "==============================================================================";
-say "=============================== SSH MANAGER ==================================\n";
 
-for my $server (@ssh_pool) {
-    say "$server->{ID}: $server->{SERVER} ( $server->{ALIAS} )"
-      if $server->{ID} > 0;
-}
-
-say "\n------------------------------------------------------------------------------";
-say "n - new connection, d [num] - delete connection, q - quit";
-say "==============================================================================";
-my $choose = <STDIN>;
-chomp($choose);
-say "Exit" and exit if ( $choose eq 'q' or $choose eq '0' );
-say "Add new" and add_new() if $choose eq 'n';
-say "Delete" and delete_server($1) if $choose =~ /^d\s+(\d+)/i;
+write_table($server_pool);
 
 # check valid choise and save server for execute
-my $server = check_server_exists($choose);
+my $server = check_server_exists(ask_user());
 
 my $pid = fork();
 die if not defined $pid;
 
-if ( not $pid ) {
+if ( not $pid ) 
+{
     exec("ssh $server");
 }
-else {
+else 
+{
     clear();
     my $finished = wait();
     goto START;
+}
+
+##################### SUBS ###########################
+sub read_db
+{
+    my $db = shift;
+    my $results  = $db->select('servers');
+    my @ssh_pool = ();
+
+    # Process one row at a time
+    while ( my $next = $results->hash ) 
+    {
+        push( @ssh_pool, $next );
+    }
+    return \@ssh_pool;
+}
+
+sub ask_user
+{
+    my $choose = <STDIN>;
+    chomp($choose);
+
+    say "Exit" and exit if ( $choose eq 'q' or $choose eq '0' );
+    say "Add new" and add_new() if $choose eq 'n';
+    say "Delete" and delete_server($1) if $choose =~ /^d\s+(\d+)/i;
+    return $choose;
 }
 
 sub add_new {
@@ -83,7 +94,7 @@ sub add_new {
     say "Enter username:";
     my $username = <STDIN>;
     chomp($username);
-    say "Enter alias:";
+    say "Enter comment:";
     my $alias = <STDIN>;
     chomp($alias);
     system("ssh-copy-id $username\@$hostname");
@@ -117,6 +128,34 @@ sub check_server_exists {
     my $server = $db->select( 'servers', ['server'], { ID => $id } )->hash;
     say "Error choice" and goto START unless $server;
     return $server->{SERVER};
+}
+
+sub write_table {
+
+    my $ssh_pool = shift;
+
+    # don't forget this if you want to output utf8 characters
+    binmode(STDOUT, ":utf8");
+     
+    my $t = Text::ANSITable->new;
+     
+    # set styles
+    $t->border_style('Default::bold');  # if not, a nice default is picked
+    $t->color_theme('Default::no_color');  # if not, a nice default is picked
+    # fill data
+    $t->columns(["ID"       , "Server" , "Comment"]);
+    
+    for my $server (@{$ssh_pool}) 
+    {
+        $t->add_row([$server->{ID}, $server->{SERVER},    $server->{ALIAS}]) if $server->{ID} > 0;
+    }
+    
+    print $t->draw;
+
+    $t = Text::ANSITable->new;
+    $t->columns(["n - new connection, d [num] - delete connection, q - quit"]); 
+    # draw it!
+    print $t->draw;
 }
 
 __DATA__
