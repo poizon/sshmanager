@@ -12,5 +12,5 @@ cpanm --installdeps .
 (for available cpanm utils - install it: cpan -i App::cpanminus )
 
 # Screenshot
-![Sshmanager]
-(https://raw.githubusercontent.com/poizon/sshmanager/master/screenshot.png)
+
+![Sshmanager](https://raw.githubusercontent.com/poizon/sshmanager/master/screenshot.png)
