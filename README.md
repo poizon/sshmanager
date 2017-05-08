@@ -13,4 +13,4 @@ cpanm --installdeps .
 
 # Screenshot
 ![Sshmanager]
-()
+(https://raw.githubusercontent.com/poizon/sshmanager/master/screenshot.png)
