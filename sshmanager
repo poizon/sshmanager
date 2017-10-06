@@ -24,7 +24,7 @@ $sql->migrations->migrate(1);
 
 # check alias column exists
 my $alias_exists = map { /alias/i } @{ $sql->db->select('servers')->columns };
-unless ($alias_exists) {
+unless ( $alias_exists ) {
     $sql->migrations->migrate(2);
 }
 
@@ -36,25 +36,25 @@ unless ( -e $rsa_files ) {
 # db handler
 my $db = $sql->db;
 REREAD:
-my $server_pool = read_db($db);
+my $server_pool = read_db();
 
 clear();
 
 START:
 
-write_table($server_pool);
+write_table( $server_pool );
 
 # check valid choise and save server for execute
-my $server = check_server_exists(ask_user());
+my $server = check_server_exists( ask_user() );
 
 my $pid = fork();
 die if not defined $pid;
 
-if ( not $pid ) 
+if ( not $pid )
 {
     exec("ssh $server");
 }
-else 
+else
 {
     clear();
     my $finished = wait();
@@ -64,12 +64,11 @@ else
 ##################### SUBS ###########################
 sub read_db
 {
-    my $db = shift;
     my $results  = $db->select('servers');
     my @ssh_pool = ();
 
     # Process one row at a time
-    while ( my $next = $results->hash ) 
+    while ( my $next = $results->hash )
     {
         push( @ssh_pool, $next );
     }
@@ -78,25 +77,22 @@ sub read_db
 
 sub ask_user
 {
-    my $choose = <STDIN>;
-    chomp($choose);
-
+    chomp( my $choose = <STDIN> );
     say "Exit" and exit if ( $choose eq 'q' or $choose eq '0' );
     say "Add new" and add_new() if $choose eq 'n';
     say "Delete" and delete_server($1) if $choose =~ /^d\s+(\d+)/i;
+
     return $choose;
 }
 
 sub add_new {
     say "Enter hostname:";
-    my $hostname = <STDIN>;
-    chomp($hostname);
+    chomp( my $hostname = <STDIN> );
     say "Enter username:";
-    my $username = <STDIN>;
-    chomp($username);
+    chomp( my $username = <STDIN> );
     say "Enter comment:";
-    my $alias = <STDIN>;
-    chomp($alias);
+    chomp( my $alias = <STDIN> );
+
     system("ssh-copy-id $username\@$hostname");
 
     $db->insert( 'servers',
@@ -106,14 +102,15 @@ sub add_new {
 
 sub delete_server {
     my $id = shift;
-    my $server =
+    my $server_to_del =
       $db->select( 'servers', ['server'], { ID => $id } )->hash->{SERVER};
-    say "Delete server?(yes/no): $server";
-    my $answer = <STDIN>;
-    chomp($answer);
+    say "Delete server?(yes/no): $server_to_del";
+    chomp( my $answer = <STDIN> );
+
     return unless $answer eq 'yes';
     say "Deleting...";
     $db->delete( 'servers', { ID => $id } );
+
     goto REREAD;
 }
 
@@ -125,9 +122,9 @@ sub check_server_exists {
     my $id = shift;
     $id =~ s/[^0-9]+//g;
     say "Error choice" and goto START unless $id;
-    my $server = $db->select( 'servers', ['server'], { ID => $id } )->hash;
-    say "Error choice" and goto START unless $server;
-    return $server->{SERVER};
+    my $server_exist = $db->select( 'servers', ['server'], { ID => $id } )->hash;
+    say "Error choice" and goto START unless $server_exist;
+    return $server_exist->{SERVER};
 }
 
 sub write_table {
@@ -136,24 +133,24 @@ sub write_table {
 
     # don't forget this if you want to output utf8 characters
     binmode(STDOUT, ":utf8");
-     
+
     my $t = Text::ANSITable->new;
-     
+
     # set styles
     $t->border_style('Default::bold');  # if not, a nice default is picked
     $t->color_theme('Default::no_color');  # if not, a nice default is picked
     # fill data
     $t->columns(["ID"       , "Server" , "Comment"]);
-    
-    for my $server (@{$ssh_pool}) 
+
+    for my $serv ( @{$ssh_pool} )
     {
-        $t->add_row([$server->{ID}, $server->{SERVER},    $server->{ALIAS}]) if $server->{ID} > 0;
+        $t->add_row([$serv->{ID}, $serv->{SERVER},    $serv->{ALIAS}]) if $serv->{ID} > 0;
     }
-    
+
     print $t->draw;
 
     $t = Text::ANSITable->new;
-    $t->columns(["n - new connection, d [num] - delete connection, q - quit"]); 
+    $t->columns(["n - new connection, d [num] - delete connection, q - quit"]);
     # draw it!
     print $t->draw;
 }
