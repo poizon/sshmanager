@@ -77,12 +77,12 @@ sub read_db
 
 sub ask_user
 {
-    chomp( my $choose = <STDIN> );
-    say "Exit" and exit if ( $choose eq 'q' or $choose eq '0' );
-    say "Add new" and add_new() if $choose eq 'n';
-    say "Delete" and delete_server($1) if $choose =~ /^d\s+(\d+)/i;
-
-    return $choose;
+    chomp( my $choice = <STDIN> );
+    say "Exit" and exit if ( $choice eq 'q' or $choice eq '0' );
+    say "Add new" and add_new() if $choice eq 'n';
+    say "Delete" and delete_server($1) if $choice =~ /^d\s+(\d+)/i;
+    return search_server($1) if $choice =~ /^s\s+(.+)/i;
+    return $choice;
 }
 
 sub add_new {
@@ -114,6 +114,25 @@ sub delete_server {
     goto REREAD;
 }
 
+sub search_server {
+    my $search = shift;
+    my $server_search = $db->query(qq{ select * from servers where server like ? },
+                                       '%' . $search . '%' )->hashes->to_array;
+
+    goto START if scalar @$server_search == 0;
+
+    return $server_search->[0]->{ID} if scalar @$server_search == 1;
+
+    say "---------- select server -------------";
+    for my $serv (@$server_search) {
+        printf ("%-2d %s\n", $serv->{ID}, $serv->{SERVER} );
+    }
+
+    chomp(my $choice = <STDIN>);
+    say "Exit" and exit if ( $choice eq 'q' or $choice eq '0' );
+    return $choice;
+}
+
 sub clear {
     system("clear");
 }
@@ -140,17 +159,18 @@ sub write_table {
     $t->border_style('Default::bold');  # if not, a nice default is picked
     $t->color_theme('Default::no_color');  # if not, a nice default is picked
     # fill data
-    $t->columns(["ID"       , "Server" , "Comment"]);
+    $t->columns(["ID", "Server" , "Comment"]);
 
     for my $serv ( @{$ssh_pool} )
     {
-        $t->add_row([$serv->{ID}, $serv->{SERVER},    $serv->{ALIAS}]) if $serv->{ID} > 0;
+        $t->add_row([ $serv->{ID}, $serv->{SERVER}, $serv->{ALIAS} ]) if $serv->{ID} > 0;
     }
 
     print $t->draw;
 
     $t = Text::ANSITable->new;
     $t->columns(["n - new connection, d [num] - delete connection, q - quit"]);
+    $t->add_row(["s [string to search] - search in list"]);
     # draw it!
     print $t->draw;
 }
