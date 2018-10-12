@@ -156,6 +156,7 @@ sub write_table {
     my $t = Text::ANSITable->new;
 
     # set styles
+    $t->use_utf8(1);# fix utf8 
     $t->border_style('Default::bold');  # if not, a nice default is picked
     $t->color_theme('Default::no_color');  # if not, a nice default is picked
     # fill data
