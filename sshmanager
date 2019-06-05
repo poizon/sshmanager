@@ -1,10 +1,11 @@
 #!/usr/bin/env perl
-# sshmanager (c) pkuptsov@gmail.com 2017
+# sshmanager (c) pkuptsov@gmail.com 2017-2019
 use common::sense;
 use File::Path qw(make_path);
 use Mojo::SQLite;
 use Text::ANSITable;
 ###########################################
+my $VERSION = "1.1";
 my $ssh_keygen = `which ssh-keygen`;
 my $rsa_files  = $ENV{HOME} . '/.ssh/id_rsa.pub';
 my $db_dir     = $ENV{HOME} . '/.sshmanager';
@@ -116,8 +117,10 @@ sub delete_server {
 
 sub search_server {
     my $search = shift;
-    my $server_search = $db->query(qq{ select * from servers where server like ? },
-                                       '%' . $search . '%' )->hashes->to_array;
+    my $search_str = '%' . $search . '%';
+    my $server_search = $db->query(qq{ select * from servers where server like ?
+                                       or alias like ? }, $search_str, $search_str
+                                       )->hashes->to_array;
 
     goto START if scalar @$server_search == 0;
 
