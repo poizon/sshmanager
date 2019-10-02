@@ -125,14 +125,24 @@ sub search_server {
     goto START if scalar @$server_search == 0;
 
     return $server_search->[0]->{ID} if scalar @$server_search == 1;
-
-    say "---------- select server -------------";
-    for my $serv (@$server_search) {
-        printf ("%-2d %s\n", $serv->{ID}, $serv->{SERVER} );
+    
+    my $t = Text::ANSITable->new;
+    $t->use_utf8(1);
+    $t->border_style('Default::bold');
+    $t->color_theme('Default::no_color');
+    $t->columns(["ID", "Server" , "Comment"]);
+    for my $serv ( @$server_search )
+    {
+        $t->add_row([  $serv->{ID}, $serv->{SERVER}, $serv->{ALIAS} ]);
     }
+    print $t->draw;
+    my $ids_string = join ',', map {$_->{ID}} @$server_search;
+    print "Select ID for connect:[ $ids_string]\n";
 
     chomp(my $choice = <STDIN>);
     say "Exit" and exit if ( $choice eq 'q' or $choice eq '0' );
+    return search_server($1) if $choice =~ /^s\s+(.+)/i;
+    
     return $choice;
 }
 
