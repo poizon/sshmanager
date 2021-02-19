@@ -10,7 +10,8 @@ my $ssh_keygen = `which ssh-keygen`;
 my $rsa_files  = $ENV{HOME} . '/.ssh/id_rsa.pub';
 my $db_dir     = $ENV{HOME} . '/.sshmanager';
 my $db_file    = 'dbmanager.db';
-
+# don't forget this if you want to output utf8 characters
+binmode(STDOUT, ":utf8");
 # make folder for database
 unless ( -d $db_dir ) {
     make_path($db_dir);
@@ -126,10 +127,9 @@ sub search_server {
 
     return $server_search->[0]->{ID} if scalar @$server_search == 1;
 
-    my $t = Text::ANSITable->new;
+    my $t = eval { Text::ANSITable->new };
     $t->use_utf8(1);
-    $t->border_style('Default::bold');
-    $t->color_theme('Default::no_color');
+    $t->apply_style_set("AltRow", odd_bgcolor=>"795548", even_bgcolor=>"000000");
     $t->columns(["ID", "Server" , "Comment"]);
     for my $serv ( @$server_search )
     {
@@ -160,29 +160,21 @@ sub check_server_exists {
 }
 
 sub write_table {
-
     my $ssh_pool = shift;
-
-    # don't forget this if you want to output utf8 characters
-    binmode(STDOUT, ":utf8");
-
-    my $t = Text::ANSITable->new;
-
+    my $t = eval { Text::ANSITable->new };
     # set styles
     $t->use_utf8(1);# fix utf8
-    $t->border_style("UTF8::SingleLineBold");
-    $t->color_theme("Text::ANSITable::Standard::NoGradation");
+    $t->apply_style_set("AltRow", odd_bgcolor=>"795548", even_bgcolor=>"000000");
     # fill data
     $t->columns(["ID", "Server" , "Comment"]);
-
     for my $serv ( @{$ssh_pool} )
     {
         $t->add_row([ $serv->{ID}, $serv->{SERVER}, $serv->{ALIAS} ]) if $serv->{ID} > 0;
     }
-
     print $t->draw;
-
-    $t = Text::ANSITable->new;
+    $t = eval { Text::ANSITable->new };
+    $t->use_utf8(1);# fix utf8
+    $t->apply_style_set("AltRow", odd_bgcolor=>"795548", even_bgcolor=>"000000");
     $t->columns(["n - new connection, d [num] - delete connection, q - quit"]);
     $t->add_row(["s [string to search] - search in list"]);
     # draw it!
