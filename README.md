@@ -1,5 +1,3 @@
-[![Kritika Analysis Status](https://kritika.io/users/poizon/repos/5786324460059380/heads/master/status.svg)](https://kritika.io/users/poizon/repos/5786324460059380/heads/master/)
-
 # sshmanager
 simple ssh connection manager for linux
 Just put this script into your ~/bin directory
@@ -16,3 +14,6 @@ cpanm --installdeps .
 # Screenshot
 
 ![Sshmanager](https://raw.githubusercontent.com/poizon/sshmanager/master/screenshot.png)
+
+CHANGE LOG:
+ * Version 1.3 - add alternative ssh key for connect, remove common::sense, perltidy apply
